@@ -26,20 +26,15 @@ jobs:
           cp custom-ui/dist/index.html internal/web/dist/index.html
           cp custom-ui/dist/index.html internal/web/dist/login.html
           cp custom-ui/dist/index.html internal/web/dist/subpage.html
-      - name: Build Go binary (amd64)
+      - name: Build Go binary (linux/amd64)
         env:
           GOOS: linux
           GOARCH: amd64
         run: go build -o x-ui-linux-amd64 .
-      - name: Build Go binary (arm64)
-        env:
-          GOOS: linux
-          GOARCH: arm64
-        run: go build -o x-ui-linux-arm64 .
-      - uses: softprops/action-gh-release@v2
+      - name: Create GitHub Release with binary attached
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             x-ui-linux-amd64
-            x-ui-linux-arm64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
