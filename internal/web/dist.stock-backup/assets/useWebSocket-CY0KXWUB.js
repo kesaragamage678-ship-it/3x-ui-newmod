@@ -1,0 +1,1 @@
+import{a as e}from"./rolldown-runtime-CNC7AqOf.js";import{gi as t}from"./vendor-BJyLD8vx.js";import{i as n}from"./index-nyBp5Y-6.js";var r=e(t(),1);function i(e){(0,r.useEffect)(()=>{let t=n(),r=Object.entries(e);for(let[e,n]of r)t.on(e,n);return t.connect(),()=>{for(let[e,n]of r)t.off(e,n)}},[])}export{i as t};

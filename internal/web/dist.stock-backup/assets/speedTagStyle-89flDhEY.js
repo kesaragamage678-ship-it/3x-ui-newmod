@@ -1,0 +1,1 @@
+var e=`table-speed-tag`,t={width:200,display:`inline-flex`,alignItems:`center`,justifyContent:`center`,textAlign:`center`,whiteSpace:`nowrap`,fontVariantNumeric:`tabular-nums`,marginInlineEnd:0,boxSizing:`border-box`,overflow:`hidden`,textOverflow:`ellipsis`};export{t as n,e as t};

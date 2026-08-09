@@ -1,0 +1,1 @@
+import{l as e}from"./utils-DrzNSzOe.js";function t(t,n,r,i={}){if(!t.success||t.obj==null)return t;let a=n.safeParse(t.obj);if(!a.success){if(console.warn(`[zod] ${r} response failed validation`,a.error.issues),i.strict)throw Error(`${r} response failed validation`);return t}return new e(t.success,t.msg,a.data)}export{t};

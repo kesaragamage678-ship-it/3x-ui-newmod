@@ -1,0 +1,1 @@
+function e(e){return t=>{typeof t!=`number`||!Number.isFinite(t)||e(t)}}export{e as t};

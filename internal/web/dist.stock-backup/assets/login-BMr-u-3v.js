@@ -1,0 +1,1 @@
+import{Or as e,Tr as t}from"./vendor-BJyLD8vx.js";var n=t({username:e().min(1,`username`),password:e().min(1,`password`),twoFactorCode:e().optional()}),r=e().min(1,`twoFactorCode`),i=e().regex(/^\d{6}$/,`pages.settings.security.twoFactorModalError`);export{i as n,r,n as t};

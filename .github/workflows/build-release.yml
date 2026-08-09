@@ -1,0 +1,45 @@
+name: Build & Release Custom 3x-ui
+on:
+  push:
+    tags:
+      - 'v*'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build custom frontend
+        run: |
+          cd custom-ui
+          npm install
+          npm run build
+      - name: Swap custom UI into 3x-ui's embedded dist
+        run: |
+          rm -rf internal/web/dist/assets
+          cp -r custom-ui/dist/assets internal/web/dist/assets
+          cp custom-ui/dist/index.html internal/web/dist/index.html
+          cp custom-ui/dist/index.html internal/web/dist/login.html
+          cp custom-ui/dist/index.html internal/web/dist/subpage.html
+      - name: Build Go binary (amd64)
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: go build -o x-ui-linux-amd64 .
+      - name: Build Go binary (arm64)
+        env:
+          GOOS: linux
+          GOARCH: arm64
+        run: go build -o x-ui-linux-arm64 .
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            x-ui-linux-amd64
+            x-ui-linux-arm64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
