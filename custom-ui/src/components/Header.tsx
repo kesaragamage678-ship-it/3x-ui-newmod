@@ -28,8 +28,28 @@ export const Header: React.FC<HeaderProps> = ({
         
         {/* Logo & Brand Name */}
         <div className="flex items-center gap-3">
-          <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/20 text-white font-black text-xl">
-            <ShieldCheck className="w-6 h-6" />
+          <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/20 text-white font-black text-xl overflow-hidden">
+            {theme.customLogoUrl ? (
+              <img src={theme.customLogoUrl} alt="Logo" className="w-full h-full object-cover" />
+            ) : (
+              <svg viewBox="0 0 40 40" className="w-7 h-7" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M4 8 L20 34 L36 8"
+                  stroke="currentColor"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M14 8 L20 18 L26 8"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity="0.55"
+                />
+              </svg>
+            )}
             <span className="absolute -bottom-1 -right-1 flex h-3 w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
@@ -37,7 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold text-white tracking-wide">{theme.panelTitle || '3x-ui Custom Panel'}</h1>
+              <h1 className="text-lg font-bold text-white tracking-wide">{theme.panelTitle || '3X-UI MR.VPNXL'}</h1>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800/50">
                 Xray {stats.xrayVersion}
               </span>

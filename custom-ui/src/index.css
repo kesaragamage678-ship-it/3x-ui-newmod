@@ -1,1 +1,68 @@
 @import "tailwindcss";
+
+/* Theme-aware classes — driven by CSS variables App.tsx sets from the
+   selected/custom theme (--x-primary, --x-secondary, --x-accent, --x-bg,
+   --x-radius). Swap the highest-visibility hardcoded cyan-* classes for
+   these so preset/color changes actually reskin the live app, not just
+   the Theme Builder's own preview canvas. */
+.theme-primary-bg { background-color: var(--x-primary, #06b6d4); }
+.theme-primary-text { color: var(--x-primary, #06b6d4); }
+.theme-primary-border { border-color: var(--x-primary, #06b6d4); }
+.theme-gradient-brand {
+  background-image: linear-gradient(to top right, var(--x-primary, #06b6d4), var(--x-secondary, #2563eb));
+}
+.theme-gradient-active {
+  background-image: linear-gradient(to right, color-mix(in srgb, var(--x-primary, #06b6d4) 15%, transparent), color-mix(in srgb, var(--x-secondary, #2563eb) 10%, transparent));
+}
+.theme-radius { border-radius: var(--x-radius, 16px); }
+
+/* ===== Global theme reskin =====
+   Tailwind bakes cyan-* / blue-* into fixed hex values at build time, so
+   they can't respond to the theme picker on their own. This block
+   overrides every cyan/blue utility class actually used in the app to
+   read from the theme's CSS variables instead — this is what makes
+   preset/color changes reskin the WHOLE app, not just the header/sidebar.
+*/
+:is(.text-cyan-200,.text-cyan-300,.text-cyan-400,.fill-cyan-400) { color: var(--x-primary, #06b6d4) !important; fill: var(--x-primary, #06b6d4) !important; }
+:is(.bg-cyan-400,.bg-cyan-500,.bg-cyan-600) { background-color: var(--x-primary, #06b6d4) !important; }
+.bg-cyan-500\/5 { background-color: color-mix(in srgb, var(--x-primary, #06b6d4) 5%, transparent) !important; }
+.bg-cyan-500\/10 { background-color: color-mix(in srgb, var(--x-primary, #06b6d4) 10%, transparent) !important; }
+.bg-cyan-500\/20 { background-color: color-mix(in srgb, var(--x-primary, #06b6d4) 20%, transparent) !important; }
+.bg-cyan-600\/20 { background-color: color-mix(in srgb, var(--x-primary, #06b6d4) 20%, transparent) !important; }
+.bg-cyan-600\/30 { background-color: color-mix(in srgb, var(--x-primary, #06b6d4) 30%, transparent) !important; }
+.bg-cyan-950 { background-color: color-mix(in srgb, var(--x-primary, #06b6d4) 22%, #030712) !important; }
+.bg-cyan-950\/20 { background-color: color-mix(in srgb, var(--x-primary, #06b6d4) 12%, transparent) !important; }
+.bg-cyan-950\/40 { background-color: color-mix(in srgb, var(--x-primary, #06b6d4) 18%, transparent) !important; }
+.bg-cyan-950\/80 { background-color: color-mix(in srgb, var(--x-primary, #06b6d4) 30%, transparent) !important; }
+:is(.border-cyan-400,.border-cyan-500) { border-color: var(--x-primary, #06b6d4) !important; }
+.border-cyan-500\/30 { border-color: color-mix(in srgb, var(--x-primary, #06b6d4) 30%, transparent) !important; }
+.border-cyan-500\/40 { border-color: color-mix(in srgb, var(--x-primary, #06b6d4) 40%, transparent) !important; }
+:is(.border-cyan-800,.border-cyan-800\/40,.border-cyan-800\/50,.border-cyan-800\/60) { border-color: color-mix(in srgb, var(--x-primary, #06b6d4) 35%, transparent) !important; }
+:is(.from-cyan-400,.from-cyan-500) { --tw-gradient-from: var(--x-primary, #06b6d4) !important; }
+.to-cyan-500 { --tw-gradient-to: var(--x-primary, #06b6d4) !important; }
+.from-cyan-950\/40 { --tw-gradient-from: color-mix(in srgb, var(--x-primary, #06b6d4) 18%, transparent) !important; }
+.to-cyan-950\/40 { --tw-gradient-to: color-mix(in srgb, var(--x-primary, #06b6d4) 18%, transparent) !important; }
+.to-cyan-950\/60 { --tw-gradient-to: color-mix(in srgb, var(--x-primary, #06b6d4) 28%, transparent) !important; }
+:is(.shadow-cyan-500\/10,.shadow-cyan-500\/20,.shadow-cyan-500\/30) { --tw-shadow-color: var(--x-primary, #06b6d4) !important; }
+.accent-cyan-500 { accent-color: var(--x-primary, #06b6d4) !important; }
+
+.text-blue-300,.text-blue-400 { color: var(--x-secondary, #2563eb) !important; }
+:is(.bg-blue-500,.bg-blue-600) { background-color: var(--x-secondary, #2563eb) !important; }
+.bg-blue-600\/20 { background-color: color-mix(in srgb, var(--x-secondary, #2563eb) 20%, transparent) !important; }
+.bg-blue-600\/30 { background-color: color-mix(in srgb, var(--x-secondary, #2563eb) 30%, transparent) !important; }
+.bg-blue-900\/60 { background-color: color-mix(in srgb, var(--x-secondary, #2563eb) 35%, transparent) !important; }
+.bg-blue-950\/30 { background-color: color-mix(in srgb, var(--x-secondary, #2563eb) 15%, transparent) !important; }
+.bg-blue-950\/60 { background-color: color-mix(in srgb, var(--x-secondary, #2563eb) 25%, transparent) !important; }
+.border-blue-500\/30 { border-color: color-mix(in srgb, var(--x-secondary, #2563eb) 30%, transparent) !important; }
+.border-blue-800\/40 { border-color: color-mix(in srgb, var(--x-secondary, #2563eb) 30%, transparent) !important; }
+:is(.to-blue-500,.to-blue-600) { --tw-gradient-to: var(--x-secondary, #2563eb) !important; }
+.via-blue-500\/30 { --tw-gradient-via: color-mix(in srgb, var(--x-secondary, #2563eb) 30%, transparent) !important; }
+
+/* hover-state variants of the same theme colors */
+.hover\:bg-cyan-400:hover,.hover\:bg-cyan-500:hover,.hover\:bg-cyan-600:hover { background-color: color-mix(in srgb, var(--x-primary, #06b6d4) 85%, white) !important; }
+.hover\:bg-cyan-950:hover { background-color: color-mix(in srgb, var(--x-primary, #06b6d4) 30%, #030712) !important; }
+.hover\:border-cyan-500:hover { border-color: var(--x-primary, #06b6d4) !important; }
+.hover\:from-cyan-400:hover { --tw-gradient-from: color-mix(in srgb, var(--x-primary, #06b6d4) 85%, white) !important; }
+.hover\:text-cyan-300:hover { color: color-mix(in srgb, var(--x-primary, #06b6d4) 85%, white) !important; }
+.hover\:bg-blue-600:hover { background-color: var(--x-secondary, #2563eb) !important; }
+.hover\:to-blue-500:hover { --tw-gradient-to: color-mix(in srgb, var(--x-secondary, #2563eb) 85%, white) !important; }

@@ -10,6 +10,8 @@ import { ExportApiView } from './components/ExportApiView';
 import { TelegramBotView } from './components/TelegramBotView';
 import { PanelSettingsView } from './components/PanelSettingsView';
 import { QrCodeModal } from './components/QrCodeModal';
+import { ClientModal } from './components/ClientModal';
+import { EditClientModal } from './components/EditClientModal';
 import { InboundModal } from './components/InboundModal';
 import { ApiConfigModal } from './components/ApiConfigModal';
 import {
@@ -81,6 +83,14 @@ export default function App() {
   const [qrInbound, setQrInbound] = useState<Inbound | null>(null);
   const [qrClientEmail, setQrClientEmail] = useState<string | undefined>(undefined);
 
+  const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [clientModalInboundId, setClientModalInboundId] = useState<number | null>(null);
+  const [clientModalProtocol, setClientModalProtocol] = useState<string>('vless');
+
+  const [isEditClientModalOpen, setIsEditClientModalOpen] = useState(false);
+  const [editClientInbound, setEditClientInbound] = useState<Inbound | null>(null);
+  const [editClientTarget, setEditClientTarget] = useState<Client | null>(null);
+
   const [isInboundModalOpen, setIsInboundModalOpen] = useState(false);
   const [editingInbound, setEditingInbound] = useState<Inbound | null>(null);
 
@@ -91,6 +101,31 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('3xui_theme', JSON.stringify(theme));
+  }, [theme]);
+
+  // Live-apply the theme: browser tab title, a few root CSS variables, and
+  // the user's own Custom CSS/JS injector box — all take effect on THIS
+  // app immediately (not just the copy-paste-into-real-panel workflow).
+  // Note: the preset color swatches don't retheme every hardcoded Tailwind
+  // class in the app yet — only these root variables + whatever selectors
+  // your Custom CSS targets.
+  useEffect(() => {
+    document.title = theme.panelTitle || '3X-UI MR.VPNXL';
+    const root = document.documentElement.style;
+    root.setProperty('--x-primary', theme.primaryColor);
+    root.setProperty('--x-secondary', theme.secondaryColor);
+    root.setProperty('--x-accent', theme.accentColor);
+    root.setProperty('--x-bg', theme.bgColor);
+    root.setProperty('--x-radius', theme.borderRadius);
+
+    const styleId = 'xui-theme-custom-css';
+    let styleTag = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!styleTag) {
+      styleTag = document.createElement('style');
+      styleTag.id = styleId;
+      document.head.appendChild(styleTag);
+    }
+    styleTag.textContent = theme.customCss || '';
   }, [theme]);
 
   useEffect(() => {
@@ -186,6 +221,65 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiConfig.useSimulatedData, apiConfig.isLoggedIn]);
+
+  // ---- LIVE MODE: real Telegram bot settings (internal/web/controller/setting.go) ----
+  const refreshLiveTelegramConfig = async () => {
+    try {
+      const s = await xuiApi.getAllSettings();
+      setTelegramConfig(prev => ({
+        ...prev,
+        enabled: !!s.tgBotEnable,
+        botToken: '', // never populated from the server — see hasSavedToken
+        hasSavedToken: !!s.hasTgBotToken,
+        chatId: s.tgBotChatId || '',
+      }));
+    } catch {
+      // Best-effort — panel may be mid-restart or on an older build without this route.
+    }
+  };
+
+  useEffect(() => {
+    if (apiConfig.useSimulatedData) return;
+    refreshLiveTelegramConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiConfig.useSimulatedData, apiConfig.isLoggedIn]);
+
+  const handleSaveTelegramSettingsLive = async (): Promise<{ success: boolean; msg: string }> => {
+    try {
+      const res: any = await xuiApi.updateSettings({
+        tgBotEnable: telegramConfig.enabled,
+        // Blank botToken means "keep the currently saved token" per the
+        // backend's redacted-secret semantics — see xuiApi.updateSettings.
+        tgBotToken: telegramConfig.botToken,
+        tgBotChatId: telegramConfig.chatId,
+      });
+      await refreshLiveTelegramConfig();
+      return { success: res?.success !== false, msg: res?.msg || 'Saved to panel.' };
+    } catch (e) {
+      if (e instanceof XuiApiError && e.code === 'UNAUTHORIZED') {
+        setTimeout(() => xuiApi.reloadToLogin(), 1200);
+      }
+      return { success: false, msg: e instanceof Error ? e.message : 'Failed to save settings.' };
+    }
+  };
+
+  const handleSendTelegramTestLive = async (): Promise<{ success: boolean; msg: string }> => {
+    try {
+      const res: any = await xuiApi.testTelegramBot();
+      return { success: res?.success !== false, msg: res?.msg || 'Test message sent.' };
+    } catch (e) {
+      return { success: false, msg: e instanceof Error ? e.message : 'Failed to send test message.' };
+    }
+  };
+
+  const handleBackupToTelegramLive = async (): Promise<{ success: boolean; msg: string }> => {
+    try {
+      const res: any = await xuiApi.backupToTelegram();
+      return { success: res?.success !== false, msg: res?.msg || 'Backup sent.' };
+    } catch (e) {
+      return { success: false, msg: e instanceof Error ? e.message : 'Failed to send backup.' };
+    }
+  };
 
   // Trigger Backup Handler
   const handleTriggerBackup = (type: 'auto_telegram' | 'manual_db' | 'json') => {
@@ -340,44 +434,34 @@ export default function App() {
 
   // Client handlers
   const handleAddClient = (inboundId: number) => {
-    const clientEmail = prompt('Enter new client email:', `user_${Date.now().toString().slice(-4)}@3xui.net`);
-    if (!clientEmail) return;
+    const inbound = inbounds.find(i => i.id === inboundId);
+    setClientModalInboundId(inboundId);
+    setClientModalProtocol(inbound?.protocol || 'vless');
+    setIsClientModalOpen(true);
+  };
 
-    const newClient: Client = {
-      id: 'c_' + Date.now(),
-      email: clientEmail,
-      uuid: crypto.randomUUID(),
-      limitIp: 2,
-      totalBytes: 100 * 1024 * 1024 * 1024, // 100 GB
-      upBytes: 0,
-      downBytes: 0,
-      expiryTime: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      enable: true,
-      subId: 'sub_' + Math.random().toString(36).substring(2, 8),
-    };
+  const handleSaveClient = (clientData: Partial<Client>, _isEdit?: boolean) => {
+    if (clientModalInboundId == null) return;
+    const inboundId = clientModalInboundId;
 
     if (isLive()) {
       xuiApi
-        .addClient(inboundId, newClient)
-        .then(() => refreshLiveInbounds())
+        .addClient(inboundId, clientData)
+        .then(() => {
+          refreshLiveInbounds();
+          setIsClientModalOpen(false);
+        })
         .catch(e => setLiveError(e instanceof Error ? e.message : 'Failed to add client'));
       return;
     }
 
     setInbounds(prev =>
       prev.map(inb => {
-        if (inb.id === inboundId) {
-          return {
-            ...inb,
-            settings: {
-              ...inb.settings,
-              clients: [...(inb.settings.clients || []), newClient],
-            },
-          };
-        }
-        return inb;
+        if (inb.id !== inboundId) return inb;
+        return { ...inb, settings: { ...inb.settings, clients: [...(inb.settings.clients || []), clientData as Client] } };
       })
     );
+    setIsClientModalOpen(false);
   };
 
   const handleDeleteClient = (inboundId: number, clientId: string) => {
@@ -385,7 +469,7 @@ export default function App() {
       const inbound = inbounds.find(i => i.id === inboundId);
       const client = inbound?.settings.clients.find(c => c.id === clientId);
       // 3x-ui identifies clients by uuid (vless/vmess) or password (trojan) or email (shadowsocks) — not our local `id`.
-      const apiClientId = client ? (client.uuid || client.email) : clientId;
+      const apiClientId = client ? client.email : clientId;
       xuiApi
         .deleteClient(inboundId, apiClientId)
         .then(() => refreshLiveInbounds())
@@ -416,6 +500,36 @@ export default function App() {
     setIsQrModalOpen(true);
   };
 
+  const handleOpenEditClient = (inbound: Inbound, client: Client) => {
+    setEditClientInbound(inbound);
+    setEditClientTarget(client);
+    setIsEditClientModalOpen(true);
+  };
+
+  const handleSaveClientEdit = (inboundId: number, updatedClient: Client) => {
+    if (isLive()) {
+      xuiApi
+        .updateClient(updatedClient.email, inboundId, updatedClient)
+        .then(() => refreshLiveInbounds())
+        .catch(e => setLiveError(e instanceof Error ? e.message : 'Failed to update client'));
+      return;
+    }
+    setInbounds(prev =>
+      prev.map(inb => {
+        if (inb.id === inboundId) {
+          return {
+            ...inb,
+            settings: {
+              ...inb.settings,
+              clients: (inb.settings.clients || []).map(c => (c.id === updatedClient.id ? updatedClient : c)),
+            },
+          };
+        }
+        return inb;
+      })
+    );
+  };
+
   // Theme update
   const handleUpdateTheme = (updatedTheme: Partial<ThemeConfig>) => {
     setTheme(prev => ({ ...prev, ...updatedTheme }));
@@ -438,7 +552,10 @@ export default function App() {
   // real login screen instead of the dashboard. Standalone/dev preview
   // (no X_UI_BASE_PATH at all) keeps the old Demo Mode behavior untouched.
   const isEmbedded = typeof window !== 'undefined' && !!window.X_UI_BASE_PATH;
-  const showLoginGate = isEmbedded && !xuiApi.isPanelContext() && !apiConfig.isLoggedIn;
+  // Whether Go served the login shell (window.X_UI_CUR_VER absent) is the
+  // ONLY authoritative signal — apiConfig.isLoggedIn is local UI state that
+  // defaults to true in the Demo Mode preset, so it must never gate this.
+  const showLoginGate = isEmbedded && !xuiApi.isPanelContext();
 
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -452,6 +569,13 @@ export default function App() {
     setLoginError(null);
     try {
       await xuiApi.login(loginUsername, loginPassword, loginTwoFactor);
+      setApiConfig(prev => ({
+        ...prev,
+        username: loginUsername,
+        isLoggedIn: true,
+        useSimulatedData: false,
+        lastSync: new Date().toLocaleTimeString(),
+      }));
       // Go only serves the authenticated dashboard shell at panel/ —
       // full navigation so the server re-renders with session globals.
       window.location.href = xuiApi.getBasePath() + 'panel/';
@@ -601,6 +725,7 @@ export default function App() {
               onOpenQrCode={handleOpenQrModal}
               onAddClient={handleAddClient}
               onDeleteClient={handleDeleteClient}
+              onEditClient={handleOpenEditClient}
             />
           )}
 
@@ -610,6 +735,7 @@ export default function App() {
               onOpenQrCode={handleOpenQrModal}
               onAddClient={handleAddClient}
               onDeleteClient={handleDeleteClient}
+              onEditClient={handleOpenEditClient}
             />
           )}
 
@@ -623,6 +749,10 @@ export default function App() {
               onRestoreBackup={handleRestoreBackup}
               inbounds={inbounds}
               stats={systemStats}
+              isLive={isLive()}
+              onSaveSettings={handleSaveTelegramSettingsLive}
+              onSendTestMessage={handleSendTelegramTestLive}
+              onBackupToTelegramReal={handleBackupToTelegramLive}
             />
           )}
 
@@ -664,6 +794,21 @@ export default function App() {
         onClose={() => setIsQrModalOpen(false)}
         inbound={qrInbound}
         clientEmail={qrClientEmail}
+      />
+
+      <ClientModal
+        isOpen={isClientModalOpen}
+        onClose={() => setIsClientModalOpen(false)}
+        onSave={handleSaveClient}
+        protocol={clientModalProtocol}
+      />
+
+      <EditClientModal
+        isOpen={isEditClientModalOpen}
+        onClose={() => setIsEditClientModalOpen(false)}
+        inbound={editClientInbound}
+        client={editClientTarget}
+        onSave={handleSaveClientEdit}
       />
 
       <InboundModal

@@ -129,6 +129,10 @@ export interface TelegramBotConfig {
   cpuThreshold: number; // e.g. 85%
   lastBackupTime?: string;
   lastBackupStatus?: 'success' | 'failed' | 'idle';
+  // Live-mode only: true when the Go backend already has a bot token saved
+  // in the DB (the real token is never sent back to the browser — only
+  // this presence flag — so a blank botToken input still means "keep it").
+  hasSavedToken?: boolean;
 }
 
 export interface PanelSettings {

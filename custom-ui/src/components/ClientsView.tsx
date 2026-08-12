@@ -7,6 +7,7 @@ import {
   QrCode,
   UserPlus,
   Trash2,
+  Pencil,
   Calendar,
   HardDrive,
   Radio,
@@ -24,6 +25,7 @@ interface ClientsViewProps {
   onOpenQrCode: (inbound: Inbound, clientEmail?: string) => void;
   onAddClient: (inboundId: number) => void;
   onDeleteClient: (inboundId: number, clientId: string) => void;
+  onEditClient: (inbound: Inbound, client: Client) => void;
 }
 
 export const ClientsView: React.FC<ClientsViewProps> = ({
@@ -31,6 +33,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
   onOpenQrCode,
   onAddClient,
   onDeleteClient,
+  onEditClient,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormat, setSelectedFormat] = useState<'raw' | 'clash' | 'singbox'>('raw');
@@ -234,6 +237,14 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                     title="Generate QR Code"
                   >
                     <QrCode className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    onClick={() => onEditClient(inbound, client)}
+                    className="p-1.5 bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-400 rounded-lg text-xs transition-colors border border-slate-700"
+                    title="Edit Client"
+                  >
+                    <Pencil className="w-4 h-4" />
                   </button>
 
                   <button

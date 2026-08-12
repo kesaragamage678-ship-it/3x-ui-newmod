@@ -31,6 +31,13 @@ interface TelegramBotViewProps {
   onRestoreBackup: (file: File) => void;
   inbounds: Inbound[];
   stats: SystemStats;
+  // Live-mode wiring (App.tsx only passes these when connected to a real
+  // 3x-ui server). When absent, the view falls back to the old local-only
+  // simulation so it still works standalone/in Demo Mode.
+  isLive?: boolean;
+  onSaveSettings?: () => Promise<{ success: boolean; msg: string }>;
+  onSendTestMessage?: () => Promise<{ success: boolean; msg: string }>;
+  onBackupToTelegramReal?: () => Promise<{ success: boolean; msg: string }>;
 }
 
 export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
@@ -42,8 +49,14 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
   onRestoreBackup,
   inbounds,
   stats,
+  isLive = false,
+  onSaveSettings,
+  onSendTestMessage,
+  onBackupToTelegramReal,
 }) => {
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [testMsgStatus, setTestMsgStatus] = useState<string | null>(null);
   
@@ -57,20 +70,71 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
   ]);
   const [inputCommand, setInputCommand] = useState('');
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
+    setSaveError(null);
+    if (isLive && onSaveSettings) {
+      setIsSaving(true);
+      try {
+        const res = await onSaveSettings();
+        if (res.success) {
+          setSaved(true);
+          setTimeout(() => setSaved(false), 2000);
+        } else {
+          setSaveError(res.msg || 'Failed to save settings to the panel.');
+        }
+      } catch (e) {
+        setSaveError(e instanceof Error ? e.message : 'Failed to save settings to the panel.');
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+    // Demo Mode fallback — local state only (already persisted by App.tsx onUpdateConfig)
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleSendTestNotification = () => {
+  const handleSendTestNotification = async () => {
     setTestMsgStatus('sending');
+
+    if (isLive && onSendTestMessage) {
+      try {
+        const res = await onSendTestMessage();
+        setTestMsgStatus(res.success ? 'sent' : 'failed');
+        setChatMessages(prev => [
+          ...prev,
+          {
+            sender: 'bot',
+            text: res.success
+              ? `🔔 *3X-UI Alert Test*\n\n✅ Real test message sent via your saved Bot Token & Chat ID.\n🖥️ Server IP: ${stats.ipAddress}`
+              : `⚠️ *Test message failed*\n\n${res.msg}\n\nCheck that the bot is Enabled, the token/chat ID are saved, and you've started a chat with your bot on Telegram.`,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          }
+        ]);
+      } catch (e) {
+        setTestMsgStatus('failed');
+        setChatMessages(prev => [
+          ...prev,
+          {
+            sender: 'bot',
+            text: `⚠️ *Test message failed*\n\n${e instanceof Error ? e.message : 'Could not reach the panel.'}`,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          }
+        ]);
+      } finally {
+        setTimeout(() => setTestMsgStatus(null), 3000);
+      }
+      return;
+    }
+
+    // Demo Mode fallback — simulated, no real Telegram message is sent
     setTimeout(() => {
       setTestMsgStatus('sent');
       setChatMessages(prev => [
         ...prev,
         {
           sender: 'bot',
-          text: `🔔 *3X-UI Alert Test*\n\n✅ Telegram Bot Token & Chat ID verified successfully!\n🖥️ Server IP: ${stats.ipAddress}\n⚡ Xray Engine: ${stats.xrayState.toUpperCase()}\n📊 CPU: ${stats.cpu.toFixed(1)}% | RAM: ${(stats.memoryUsed / 1024 / 1024 / 1024).toFixed(2)} GB`,
+          text: `🔔 *3X-UI Alert Test (Demo Mode — not a real Telegram message)*\n\n✅ Telegram Bot Token & Chat ID verified successfully!\n🖥️ Server IP: ${stats.ipAddress}\n⚡ Xray Engine: ${stats.xrayState.toUpperCase()}\n📊 CPU: ${stats.cpu.toFixed(1)}% | RAM: ${(stats.memoryUsed / 1024 / 1024 / 1024).toFixed(2)} GB`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         }
       ]);
@@ -78,8 +142,39 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
     }, 1200);
   };
 
-  const handleManualBackupToTelegram = () => {
+  const handleManualBackupToTelegram = async () => {
     setIsBackingUp(true);
+
+    if (isLive && onBackupToTelegramReal) {
+      try {
+        const res = await onBackupToTelegramReal();
+        setChatMessages(prev => [
+          ...prev,
+          {
+            sender: 'bot',
+            text: res.success
+              ? `📦 *Backup sent to your Telegram admin chat(s)*\n⏰ Timestamp: ${new Date().toLocaleString()}`
+              : `⚠️ *Backup-to-Telegram failed*\n\n${res.msg}`,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          }
+        ]);
+        if (res.success) onTriggerBackup('auto_telegram');
+      } catch (e) {
+        setChatMessages(prev => [
+          ...prev,
+          {
+            sender: 'bot',
+            text: `⚠️ *Backup-to-Telegram failed*\n\n${e instanceof Error ? e.message : 'Could not reach the panel.'}`,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          }
+        ]);
+      } finally {
+        setIsBackingUp(false);
+      }
+      return;
+    }
+
+    // Demo Mode fallback
     setTimeout(() => {
       onTriggerBackup('auto_telegram');
       setIsBackingUp(false);
@@ -87,7 +182,7 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
         ...prev,
         {
           sender: 'bot',
-          text: `📦 *New 3X-UI Database Backup Created*\n\n📁 File: \`x-ui-backup-${new Date().toISOString().slice(0, 10)}.db\`\n📊 Inbounds: ${inbounds.length} ports\n👥 Total Clients: ${inbounds.reduce((acc, i) => acc + (i.settings.clients?.length || 0), 0)}\n⏰ Timestamp: ${new Date().toLocaleString()}`,
+          text: `📦 *New 3X-UI Database Backup Created (Demo Mode)*\n\n📁 File: \`x-ui-backup-${new Date().toISOString().slice(0, 10)}.db\`\n📊 Inbounds: ${inbounds.length} ports\n👥 Total Clients: ${inbounds.reduce((acc, i) => acc + (i.settings.clients?.length || 0), 0)}\n⏰ Timestamp: ${new Date().toLocaleString()}`,
           attachment: `x-ui-backup-${new Date().toISOString().slice(0, 10)}.db`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         }
@@ -177,13 +272,27 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
 
           <button
             onClick={handleSaveSettings}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5"
+            disabled={isSaving}
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 disabled:opacity-50"
           >
-            {saved ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <ShieldCheck className="w-4 h-4 text-cyan-400" />}
-            <span>{saved ? 'Saved!' : 'Save Config'}</span>
+            {isSaving ? (
+              <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
+            ) : saved ? (
+              <CheckCircle2 className="w-4 h-4 text-green-400" />
+            ) : (
+              <ShieldCheck className="w-4 h-4 text-cyan-400" />
+            )}
+            <span>{isSaving ? 'Saving...' : saved ? 'Saved!' : 'Save Config'}</span>
           </button>
         </div>
       </div>
+
+      {saveError && (
+        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-300 flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{saveError}</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
@@ -220,9 +329,18 @@ export const TelegramBotView: React.FC<TelegramBotViewProps> = ({
                   type="text"
                   value={config.botToken}
                   onChange={(e) => onUpdateConfig({ botToken: e.target.value })}
-                  placeholder="e.g. 7829104812:AAH9xKzL2m_P3oR1vQ5..."
+                  placeholder={
+                    isLive && config.hasSavedToken
+                      ? '🔒 Token already saved on server — leave blank to keep it'
+                      : 'e.g. 7829104812:AAH9xKzL2m_P3oR1vQ5...'
+                  }
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-cyan-300 font-mono focus:outline-none focus:border-cyan-500"
                 />
+                {isLive && (
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    For security, the panel never sends the saved token back to the browser. Leave this blank to keep the current token, or type a new one to replace it.
+                  </p>
+                )}
               </div>
 
               <div>

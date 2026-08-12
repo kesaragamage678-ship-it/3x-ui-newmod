@@ -16,7 +16,8 @@ import {
   Zap,
   RefreshCw,
   Sliders,
-  HelpCircle
+  HelpCircle,
+  Save
 } from 'lucide-react';
 import { ThemeConfig } from '../types';
 import { themePresets } from '../data/mock3xui';
@@ -37,9 +38,23 @@ export const ThemeCustomizerView: React.FC<ThemeCustomizerViewProps> = ({
   const [copiedJs, setCopiedJs] = useState(false);
   const [copiedFull, setCopiedFull] = useState(false);
   const [previewViewMode, setPreviewViewMode] = useState<'dashboard' | 'login'>('dashboard');
+  const [justSaved, setJustSaved] = useState(false);
+
+  // Theme changes already auto-save to this browser's local storage as you
+  // edit — this button is just an explicit confirmation for peace of mind.
+  // Note: it's saved per-browser, not on the server, so it won't follow you
+  // to a different device/browser automatically.
+  const handleSaveTheme = () => {
+    onUpdateTheme(theme);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 2000);
+  };
 
   const handleApplyPreset = (preset: ThemeConfig) => {
-    onUpdateTheme(preset);
+    // Keep the user's own branding (title/logo) — presets should only
+    // change colors/style, not overwrite a custom title back to the
+    // preset's default name.
+    onUpdateTheme({ ...preset, panelTitle: theme.panelTitle, customLogoUrl: theme.customLogoUrl });
   };
 
   const handleCopyCss = () => {
@@ -98,6 +113,14 @@ export const ThemeCustomizerView: React.FC<ThemeCustomizerViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleSaveTheme}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl border border-emerald-500 transition-colors flex items-center gap-1.5"
+          >
+            {justSaved ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
+            <span>{justSaved ? 'Saved!' : 'Save Theme'}</span>
+          </button>
+
           <button
             onClick={onResetTheme}
             className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5"
@@ -214,6 +237,17 @@ export const ThemeCustomizerView: React.FC<ThemeCustomizerViewProps> = ({
                     onChange={(e) => onUpdateTheme({ panelTitle: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-cyan-500"
                     placeholder="e.g., 3x-ui VPN Panel"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-400 block mb-1">Logo Image URL</label>
+                  <input
+                    type="text"
+                    value={theme.customLogoUrl}
+                    onChange={(e) => onUpdateTheme({ customLogoUrl: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-cyan-500"
+                    placeholder="https://example.com/logo.png (leave blank for the default mark)"
                   />
                 </div>
               </div>

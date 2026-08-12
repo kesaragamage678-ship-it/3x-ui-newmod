@@ -21,13 +21,7 @@ export const QrCodeModal: React.FC<QrCodeModalProps> = ({
   const [activeFormat, setActiveFormat] = useState<'vless' | 'clash' | 'singbox'>('vless');
   const [copied, setCopied] = useState(false);
 
-  if (!isOpen || !inbound) return null;
-
-  const connectionLink = generateConnectionLink(inbound, clientEmail);
-  const clashYaml = generateClashYaml(inbound, clientEmail);
-  const singboxJson = generateSingboxJson(inbound, clientEmail);
-
-  const displayString = activeFormat === 'vless' ? connectionLink : activeFormat === 'clash' ? clashYaml : singboxJson;
+  const connectionLink = isOpen && inbound ? generateConnectionLink(inbound, clientEmail) : '';
 
   useEffect(() => {
     if (canvasRef.current && connectionLink) {
@@ -42,7 +36,14 @@ export const QrCodeModal: React.FC<QrCodeModalProps> = ({
         if (err) console.error('QR Code generation error:', err);
       });
     }
-  }, [connectionLink, activeFormat]);
+  }, [connectionLink]);
+
+  if (!isOpen || !inbound) return null;
+
+  const clashYaml = generateClashYaml(inbound, clientEmail);
+  const singboxJson = generateSingboxJson(inbound, clientEmail);
+
+  const displayString = activeFormat === 'vless' ? connectionLink : activeFormat === 'clash' ? clashYaml : singboxJson;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(displayString);

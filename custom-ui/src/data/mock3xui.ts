@@ -278,7 +278,7 @@ export const initialInbounds: Inbound[] = [
 
 export const themePresets: ThemeConfig[] = [
   {
-    presetName: 'Cyberpunk Neon Glass',
+    presetName: '3X-UI MR.VPNXL',
     primaryColor: '#00f2fe',
     secondaryColor: '#4facfe',
     accentColor: '#f39c12',
@@ -290,7 +290,7 @@ export const themePresets: ThemeConfig[] = [
     glassmorphism: true,
     blurIntensity: 16,
     customLogoUrl: '',
-    panelTitle: '3x-ui Cyber Core',
+    panelTitle: '3X-UI MR.VPNXL',
     fontFamily: 'Inter, system-ui, sans-serif',
     customCss: `/* 3x-ui Cyberpunk Custom CSS */
 .xui-layout { background: radial-gradient(circle at top right, #0f172a 0%, #0a0d14 100%) !important; }
@@ -402,7 +402,7 @@ export function formatSpeed(bytesPerSec: number): string {
 }
 
 export function generateConnectionLink(inbound: Inbound, clientEmail?: string): string {
-  const serverIp = '159.65.132.88';
+  const serverIp = typeof window !== 'undefined' ? window.location.hostname : '159.65.132.88';
   const client = inbound.settings.clients.find(c => c.email === clientEmail) || inbound.settings.clients[0];
   if (!client) return '';
 
@@ -459,7 +459,7 @@ export function generateConnectionLink(inbound: Inbound, clientEmail?: string): 
 
 export function generateClashYaml(inbound: Inbound, clientEmail?: string): string {
   const client = inbound.settings.clients.find(c => c.email === clientEmail) || inbound.settings.clients[0];
-  const serverIp = '159.65.132.88';
+  const serverIp = typeof window !== 'undefined' ? window.location.hostname : '159.65.132.88';
 
   return `proxies:
   - name: "${inbound.remark} [${client?.email || 'User'}]"
@@ -482,7 +482,7 @@ export function generateClashYaml(inbound: Inbound, clientEmail?: string): strin
 
 export function generateSingboxJson(inbound: Inbound, clientEmail?: string): string {
   const client = inbound.settings.clients.find(c => c.email === clientEmail) || inbound.settings.clients[0];
-  const serverIp = '159.65.132.88';
+  const serverIp = typeof window !== 'undefined' ? window.location.hostname : '159.65.132.88';
 
   return JSON.stringify({
     outbounds: [

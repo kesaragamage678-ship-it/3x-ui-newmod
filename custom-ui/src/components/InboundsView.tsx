@@ -5,6 +5,7 @@ import {
   QrCode,
   Edit2,
   Trash2,
+  Pencil,
   UserPlus,
   Users,
   Shield,
@@ -31,6 +32,7 @@ interface InboundsViewProps {
   onOpenQrCode: (inbound: Inbound, clientEmail?: string) => void;
   onAddClient: (inboundId: number) => void;
   onDeleteClient: (inboundId: number, clientId: string) => void;
+  onEditClient: (inbound: Inbound, client: Client) => void;
 }
 
 export const InboundsView: React.FC<InboundsViewProps> = ({
@@ -42,6 +44,7 @@ export const InboundsView: React.FC<InboundsViewProps> = ({
   onOpenQrCode,
   onAddClient,
   onDeleteClient,
+  onEditClient,
 }) => {
   const [filterProtocol, setFilterProtocol] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -329,6 +332,13 @@ export const InboundsView: React.FC<InboundsViewProps> = ({
                                     title="View QR Code"
                                   >
                                     <QrCode className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => onEditClient(inbound, client)}
+                                    className="p-1.5 bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-400 rounded text-[11px] transition-colors"
+                                    title="Edit Client"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
                                   </button>
                                   <button
                                     onClick={() => onDeleteClient(inbound.id, client.id)}

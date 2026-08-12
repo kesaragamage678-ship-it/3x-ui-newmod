@@ -160,28 +160,44 @@ export async function deleteInbound(id: number) {
 }
 
 // ---- Clients ----
+// Confirmed against v3.6.0 source: clients live under a SEPARATE
+// /panel/api/clients/ group (not /panel/api/inbounds/), identified by
+// EMAIL (not uuid), using the raw model.Client field names (totalGB,
+// tgId as a number, etc.) — see internal/database/model/model.go.
+function toApiClient(client: Record<string, any>) {
+  return {
+    id: client.uuid || client.id || '',
+    email: client.email,
+    flow: client.flow || '',
+    limitIp: client.limitIp || 0,
+    totalGB: client.totalBytes ? Math.round(client.totalBytes / 1024 ** 3) : 0,
+    expiryTime: client.expiryTime || 0,
+    enable: client.enable,
+    subId: client.subId || '',
+    tgId: client.tgId ? Number(client.tgId) || 0 : 0,
+  };
+}
+
 export async function addClient(inboundId: number, client: Record<string, any>) {
-  return rawFetch('panel/api/inbounds/addClient', {
+  return rawFetch('panel/api/clients/add', {
     method: 'POST',
-    body: JSON.stringify({ id: inboundId, settings: JSON.stringify({ clients: [client] }) }),
+    body: JSON.stringify({ client: toApiClient(client), inboundIds: [inboundId] }),
   });
 }
 
-export async function updateClient(clientId: string, inboundId: number, client: Record<string, any>) {
-  return rawFetch(`panel/api/inbounds/updateClient/${clientId}`, {
+export async function updateClient(email: string, inboundId: number, client: Record<string, any>) {
+  return rawFetch(`panel/api/clients/update/${encodeURIComponent(email)}?inboundIds=${inboundId}`, {
     method: 'POST',
-    body: JSON.stringify({ id: inboundId, settings: JSON.stringify({ clients: [client] }) }),
+    body: JSON.stringify(toApiClient(client)),
   });
 }
 
-export async function deleteClient(inboundId: number, clientId: string) {
-  return rawFetch(`panel/api/inbounds/${inboundId}/delClient/${clientId}`, { method: 'POST' });
+export async function deleteClient(inboundId: number, email: string) {
+  return rawFetch(`panel/api/clients/del/${encodeURIComponent(email)}?inboundIds=${inboundId}`, { method: 'POST' });
 }
 
 export async function resetClientTraffic(inboundId: number, email: string) {
-  return rawFetch(`panel/api/inbounds/${inboundId}/resetClientTraffic/${encodeURIComponent(email)}`, {
-    method: 'POST',
-  });
+  return rawFetch(`panel/api/clients/resetTraffic/${encodeURIComponent(email)}`, { method: 'POST' });
 }
 
 // ---- Server ---- (confirmed: internal/web/controller/server.go)
@@ -192,6 +208,70 @@ export async function getServerStatus() {
 
 export async function restartXrayService() {
   return rawFetch('panel/api/server/restartXrayService', { method: 'POST' });
+}
+
+// ---- Panel Settings (native Telegram bot lives here, NOT in a custom table) ----
+// Confirmed against MHSanaei/3x-ui internal/web/controller/setting.go +
+// internal/web/entity/entity.go (AllSetting struct):
+//   - POST panel/setting/all      -> browser-safe settings view. Secret
+//     fields (like tgBotToken) come back BLANK with a `hasTgBotToken`
+//     presence flag instead of the real value — the real token never
+//     touches the browser.
+//   - POST panel/setting/update   -> takes the FULL AllSetting object (not
+//     a partial patch). A blank tgBotToken in the payload means "leave the
+//     stored token unchanged"; to actually clear it you must also send
+//     clearTgBotToken: true.
+//   - POST panel/setting/testTgBot -> sends a real Telegram message using
+//     whatever is currently SAVED in the DB (save first, then test).
+//   - GET  panel/api/backuptotgbot -> packages a DB backup and pushes it to
+//     every admin chat ID configured in the saved settings.
+export interface AllSettingView {
+  tgBotEnable: boolean;
+  tgBotToken: string;
+  hasTgBotToken?: boolean;
+  tgBotChatId: string;
+  tgBotAPIServer?: string;
+  tgRunTime: string;
+  tgCpu: number;
+  [key: string]: any;
+}
+
+export async function getAllSettings(): Promise<AllSettingView> {
+  const data = await rawFetch<AllSettingView>('panel/setting/all', { method: 'POST' });
+  return data.obj as AllSettingView;
+}
+
+export interface UpdateSettingsExtras {
+  twoFactorCode?: string;
+  clearTgBotToken?: boolean;
+}
+
+// Fetches the current full settings, merges `patch` on top, and submits the
+// whole thing back — the update endpoint replaces all fields, so we can't
+// send a bare partial or every other setting (webPort, subPath, etc.) would
+// be wiped/reset.
+export async function updateSettings(
+  patch: Partial<AllSettingView>,
+  extras: UpdateSettingsExtras = {}
+) {
+  const current = await getAllSettings();
+  const merged = { ...current, ...patch };
+  return rawFetch('panel/setting/update', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...merged,
+      twoFactorCode: extras.twoFactorCode || '',
+      clearTgBotToken: !!extras.clearTgBotToken,
+    }),
+  });
+}
+
+export async function testTelegramBot() {
+  return rawFetch('panel/setting/testTgBot', { method: 'POST' });
+}
+
+export async function backupToTelegram() {
+  return rawFetch('panel/api/backuptotgbot', { method: 'GET' });
 }
 
 // ---- Helpers: API <-> app-typed Inbound conversion (settings/streamSettings
@@ -206,9 +286,37 @@ export function parseInboundFromApi(raw: any) {
       return fallback;
     }
   };
+
+  const settings = safeParse(raw.settings, { clients: [] });
+
+  // Real 3x-ui client objects use `id` (VLESS/VMess UUID) or `password`
+  // (Trojan/Shadowsocks) as the identity field — there's no separate
+  // `uuid` field like our UI expects. Traffic usage also isn't on the
+  // client object at all; it lives in a parallel `inbound.clientStats`
+  // array matched by email.
+  const statsByEmail: Record<string, any> = {};
+  (raw.clientStats || []).forEach((s: any) => {
+    if (s?.email) statsByEmail[s.email] = s;
+  });
+
+  const clients = (settings.clients || []).map((c: any) => {
+    const identity = c.id || c.password || c.email;
+    const stat = statsByEmail[c.email];
+    return {
+      ...c,
+      id: identity,
+      uuid: c.id || c.password || '',
+      totalBytes: stat?.total ?? (c.totalGB ? c.totalGB * 1024 ** 3 : c.totalBytes ?? 0),
+      upBytes: stat?.up ?? c.upBytes ?? 0,
+      downBytes: stat?.down ?? c.downBytes ?? 0,
+      expiryTime: stat?.expiryTime ?? c.expiryTime ?? 0,
+      enable: stat?.enable ?? c.enable ?? true,
+    };
+  });
+
   return {
     ...raw,
-    settings: safeParse(raw.settings, { clients: [] }),
+    settings: { ...settings, clients },
     streamSettings: safeParse(raw.streamSettings, { network: 'tcp', security: 'none' }),
     sniffing: safeParse(raw.sniffing, undefined),
   };
